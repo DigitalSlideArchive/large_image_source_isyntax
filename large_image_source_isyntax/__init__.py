@@ -113,6 +113,10 @@ class ISyntaxFileTileSource(FileTileSource, metaclass=LruCacheMetaclass):
         if self._levelIdx[0] is None:
             raise TileSourceError(
                 'File cannot be opened via the isyntax source: scale 1 level not located.')
+        # It looks like the library already applies ICC profile correction.
+        # In one sample, applying it makes the image very washed out.
+        # if self._pe['WSI'].icc_profile:
+        #     self._iccprofiles = [base64.b64decode(self._pe['WSI'].icc_profile)]
         self._tileLock = threading.RLock()
 
     def __del__(self):
