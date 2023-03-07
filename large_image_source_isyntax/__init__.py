@@ -1,8 +1,12 @@
+import base64
+import builtins
 import io
 import math
 import os
 import threading
+import xml.etree.ElementTree
 
+import large_image.tilesource
 import numpy
 import PIL.Image
 from large_image.cache_util import LruCacheMetaclass, methodcache
@@ -42,6 +46,54 @@ def _lazyImport():
                 'softwarerendercontext module not found.')
 
 
+def philipsTag(dict, truncate=False):  # noqa
+    """
+    Given an xml dictionary, return a more compact dictionary.
+
+    :param dict: an xml dictionary.
+    """
+    result = []
+    dobjs = dict['DataObject']
+    if not isinstance(dobjs, list):
+        dobjs = [dobjs]
+    for dobj in dobjs:
+        subresult = {}
+        taglist = dobj['Attribute']
+        if not isinstance(taglist, list):
+            taglist = [taglist]
+        for entry in taglist:
+            key = entry['Name']
+            if 'Array' in entry:
+                value = philipsTag(entry['Array'], truncate)
+                if not len(value):
+                    continue
+            elif 'text' in entry:
+                value = entry['text']
+                if key in {
+                        'PIM_DP_UFS_BARCODE', 'PIM_DP_IMAGE_DATA',
+                        'DICOM_ICCPROFILE', 'UFS_IMAGE_BLOCK_HEADER_TABLE'}:
+                    value = base64.b64decode(value)
+                    if key in {'PIM_DP_UFS_BARCODE'}:
+                        value = value.decode()
+                    elif truncate:
+                        value = repr(value[:200])
+            if entry.get('PMSVR') == 'IStringArray':
+                value = value.strip('"').split('" "')
+            elif entry.get('PMSVR') == 'IDouble':
+                value = float(value)
+            elif entry.get('PMSVR') == 'IDoubleArray':
+                value = [float(v.strip('"')) for v in value.split()]
+            elif entry.get('PMSVR') in {'IInt16', 'IInt32', 'IUInt16', 'IUInt32'}:
+                value = int(value)
+            elif entry.get('PMSVR') in {
+                    'IInt16Array', 'IInt32Array', 'IUInt16Array', 'IUInt32Array'}:
+                value = [int(v) for v in value.split()]
+            subresult[key] = value
+        if len(subresult):
+            result.append(subresult)
+    return result
+
+
 class ISyntaxFileTileSource(FileTileSource, metaclass=LruCacheMetaclass):
     """
     Provides tile access to nd2 files the nd2 library can read.
@@ -67,6 +119,7 @@ class ISyntaxFileTileSource(FileTileSource, metaclass=LruCacheMetaclass):
         super().__init__(path, **kwargs)
 
         self._largeImagePath = str(self._getLargeImagePath())
+        self._readXML()
         _lazyImport()
         render_context = softwarerendercontext.SoftwareRenderContext()
         render_backend = softwarerenderbackend.SoftwareRenderBackend()
@@ -124,6 +177,56 @@ class ISyntaxFileTileSource(FileTileSource, metaclass=LruCacheMetaclass):
             self._pe.close()
             del self._pe
 
+    def _readXML(self):
+        chunk = 65536
+        opentag = b'<DataObject'
+        closetag = b'</DataObject'
+        docount = 0
+        xmllen = 0
+        any = False
+        with builtins.open(self._largeImagePath, 'rb') as fptr:
+            data = fptr.read(chunk)
+            while True:
+                if opentag in data and (
+                        closetag not in data or data.find(opentag) < data.find(closetag)):
+                    any = True
+                    docount += 1
+                    xmllen += data.find(opentag) + len(opentag)
+                    data = data[data.find(opentag) + len(opentag):]
+                elif closetag in data and (
+                        opentag not in data or data.find(closetag) < data.find(opentag)):
+                    docount -= 1
+                    xmllen += data.find(closetag) + len(closetag)
+                    data = data[data.find(closetag) + len(closetag):]
+                    if not docount:
+                        break
+                else:
+                    xmllen += max(0, len(data) - max(len(opentag), len(closetag)))
+                    data = data[-max(len(opentag), len(closetag)):]
+                    data2 = fptr.read(chunk)
+                    if not len(data2):
+                        break
+                    data += data2
+            if not any:
+                self.logger.warning('Could not locate XML')
+                return
+            xmllen += 1
+            if xmllen > 100 * 1024 ** 2:
+                self.logger.warning('XML is too large')
+                return
+            fptr.seek(0)
+            xmltree = fptr.read(xmllen)
+            print(xmllen)
+        try:
+            xmltree = xml.etree.ElementTree.fromstring(xmltree)
+        except Exception:
+            self.logger.warning('Could not parse XML')
+            return
+        self._xmltree = xmltree
+        self._xmldata = large_image.tilesource.etreeToDict(xmltree)
+        self._philips = philipsTag(self._xmldata)
+        self._philipsShort = philipsTag(self._xmldata, True)
+
     def getNativeMagnification(self):
         """
         Get the magnification at a particular level.
@@ -148,7 +251,7 @@ class ISyntaxFileTileSource(FileTileSource, metaclass=LruCacheMetaclass):
 
         :returns: a dictionary of data or None.
         """
-        result = {'isyntax': {}, 'wsi': {}}
+        result = {'isyntax': {}, 'wsi': {}, 'xml': getattr(self, '_philipsShort', None)}
         for key in dir(self._pe):
             try:
                 if (not key.startswith('_') and
