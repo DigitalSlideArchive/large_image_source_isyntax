@@ -1,6 +1,6 @@
 import os
 
-from large_image.cache_util import LruCacheMetaclass
+from large_image.cache_util import LruCacheMetaclass, strhash
 from large_image.exceptions import TileSourceError, TileSourceFileNotFoundError
 from large_image.tilesource import FileTileSource
 
@@ -45,6 +45,8 @@ class RPYCFileTileSource(FileTileSource, metaclass=LruCacheMetaclass):
         :param path: a filesystem path for the tile source.
         """
         super().__init__(path, **kwargs)
+        self._spec = kwargs.copy()
+        self._spec.pop('style', None)
         self._largeImagePath = str(self._getLargeImagePath())
         _lazyImport()
         try:
@@ -61,7 +63,10 @@ class RPYCFileTileSource(FileTileSource, metaclass=LruCacheMetaclass):
         for key in dir(self._proxy):
             if not key.startswith('__') and key not in {
                 '_classkey', '_unstyledClassKey', 'cache', 'cacheName',
-                'cache_lock', 'logger', 'wrapKey',
+                'cache_lock', 'logger', 'wrapKey', '_tileIterator',
+                'tileIterator', 'tileIteratorAtAnotherScale', 'getSingleTile',
+                'getSingleTileAtAnotherScale', 'getTileCount', 'histogram',
+                'getRegion', 'tileFrames', 'getPixel',
             }:
                 try:
                     setattr(self, key, getattr(self._proxy, key))
@@ -75,6 +80,19 @@ class RPYCFileTileSource(FileTileSource, metaclass=LruCacheMetaclass):
                         setattr(self, key, wrap(key))
                 except Exception:
                     pass
+
+    @staticmethod
+    def getLRUHash(*args, **kwargs):
+        kwargs = kwargs.copy()
+        kwargs.pop('style', None)
+        return strhash(
+            super(RPYCFileTileSource, RPYCFileTileSource).getLRUHash(
+                *args, **kwargs),
+            kwargs,
+        )
+
+    def getState(self):
+        return super().getState() + ',' + repr(self._spec)
 
 
 def open(*args, **kwargs):

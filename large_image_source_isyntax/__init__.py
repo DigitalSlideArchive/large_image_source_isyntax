@@ -216,7 +216,6 @@ class ISyntaxFileTileSource(FileTileSource, metaclass=LruCacheMetaclass):
                 return
             fptr.seek(0)
             xmltree = fptr.read(xmllen)
-            print(xmllen)
         try:
             xmltree = xml.etree.ElementTree.fromstring(xmltree)
         except Exception:
