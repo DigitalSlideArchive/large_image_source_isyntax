@@ -104,6 +104,7 @@ class ISyntaxFileTileSource(FileTileSource, metaclass=LruCacheMetaclass):
     extensions = {
         None: SourcePriority.LOW,
         'isyntax': SourcePriority.PREFERRED,
+        'i2syntax': SourcePriority.PREFERRED,
     }
 
     _tileSize = 512
