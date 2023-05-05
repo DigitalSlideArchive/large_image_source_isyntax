@@ -120,7 +120,9 @@ class ISyntaxFileTileSource(FileTileSource, metaclass=LruCacheMetaclass):
         super().__init__(path, **kwargs)
 
         self._largeImagePath = str(self._getLargeImagePath())
-        self._readXML()
+        if not self._readXML():
+            raise TileSourceError(
+                'File cannot be opened via the isyntax source.  Not expected XML start.')
         _lazyImport()
         render_context = softwarerendercontext.SoftwareRenderContext()
         render_backend = softwarerenderbackend.SoftwareRenderBackend()
@@ -179,6 +181,7 @@ class ISyntaxFileTileSource(FileTileSource, metaclass=LruCacheMetaclass):
             del self._pe
 
     def _readXML(self):
+        initialChunk = 256
         chunk = 65536
         opentag = b'<DataObject'
         closetag = b'</DataObject'
@@ -186,7 +189,10 @@ class ISyntaxFileTileSource(FileTileSource, metaclass=LruCacheMetaclass):
         xmllen = 0
         any = False
         with builtins.open(self._largeImagePath, 'rb') as fptr:
-            data = fptr.read(chunk)
+            data = fptr.read(initialChunk)
+            if opentag not in data:
+                self.logger.debug('Could not locate initial XML')
+                return
             while True:
                 if opentag in data and (
                         closetag not in data or data.find(opentag) < data.find(closetag)):
@@ -209,23 +215,24 @@ class ISyntaxFileTileSource(FileTileSource, metaclass=LruCacheMetaclass):
                         break
                     data += data2
             if not any:
-                self.logger.warning('Could not locate XML')
+                self.logger.debug('Could not locate XML')
                 return
             xmllen += 1
             if xmllen > 100 * 1024 ** 2:
-                self.logger.warning('XML is too large')
+                self.logger.debug('XML is too large')
                 return
             fptr.seek(0)
             xmltree = fptr.read(xmllen)
         try:
             xmltree = xml.etree.ElementTree.fromstring(xmltree)
         except Exception:
-            self.logger.warning('Could not parse XML')
+            self.logger.debug('Could not parse XML')
             return
         self._xmltree = xmltree
         self._xmldata = large_image.tilesource.etreeToDict(xmltree)
         self._philips = philipsTag(self._xmldata)
         self._philipsShort = philipsTag(self._xmldata, True)
+        return True
 
     def getNativeMagnification(self):
         """
