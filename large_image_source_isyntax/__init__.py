@@ -228,6 +228,7 @@ class ISyntaxFileTileSource(FileTileSource, metaclass=LruCacheMetaclass):
         except Exception:
             self.logger.debug('Could not parse XML')
             return
+        self._xmllen = xmllen
         self._xmltree = xmltree
         self._xmldata = large_image.tilesource.etreeToDict(xmltree)
         self._philips = philipsTag(self._xmldata)

@@ -70,7 +70,8 @@ class RPYCFileTileSource(FileTileSource, metaclass=LruCacheMetaclass):
             }:
                 try:
                     setattr(self, key, getattr(self._proxy, key))
-                    if callable(getattr(self._proxy, key)):
+                    if (callable(getattr(self._proxy, key)) and
+                            not isinstance(getattr(self, key), dict)):
                         def wrap(key):
                             def wrapped_method(*args, **kwargs):
                                 result = rpyc.utils.classic.obtain(
