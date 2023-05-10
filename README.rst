@@ -14,3 +14,7 @@ Python Versions
 ---------------
 
 At the time of this writing, the Philips SDK only had Python 3.6 and 3.8 support for Ubuntu and 3.7 support for Windows.  In order to allow the core python program to run in your preferred Python version and environment, you can create a secondary Python 3.8 environment and install this module and the ``rpyc`` module in both it and your preferred environment.  In the Python 3.8 environment, run ``rpyc_classic``.  large_image in the main environment will use the 3.8 environment for sources it can't read directly (iSyntax, in this case).
+
+Example
+-------
+See the `WSI_DEID devops <https://github.com/DigitalSlideArchive/DSA-WSI-DeID/tree/master/devops/wsi_deid>`_ for how this could be deployed along with the Philips iSyntax SDK.
