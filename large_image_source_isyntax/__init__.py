@@ -74,7 +74,10 @@ def philipsTag(dict, truncate=False):  # noqa
                         'DICOM_ICCPROFILE', 'UFS_IMAGE_BLOCK_HEADER_TABLE'}:
                     value = base64.b64decode(value)
                     if key in {'PIM_DP_UFS_BARCODE'}:
-                        value = value.decode()
+                        try:
+                            value = value.decode()
+                        except Exception:
+                            value = entry['text']
                     elif truncate:
                         value = repr(value[:200])
             if entry.get('PMSVR') == 'IStringArray':
@@ -120,7 +123,12 @@ class ISyntaxFileTileSource(FileTileSource, metaclass=LruCacheMetaclass):
         super().__init__(path, **kwargs)
 
         self._largeImagePath = str(self._getLargeImagePath())
-        if not self._readXML():
+        try:
+            if not self._readXML():
+                raise TileSourceError(
+                    'File cannot be opened via the isyntax source.  Not expected XML start.')
+        except Exception:
+            self.logger.exception('Failed in parsing XML')
             raise TileSourceError(
                 'File cannot be opened via the isyntax source.  Not expected XML start.')
         _lazyImport()
@@ -232,7 +240,11 @@ class ISyntaxFileTileSource(FileTileSource, metaclass=LruCacheMetaclass):
         self._xmltree = xmltree
         self._xmldata = large_image.tilesource.etreeToDict(xmltree)
         self._philips = philipsTag(self._xmldata)
+        if isinstance(self._philips, list):
+            self._philips = self._philips[0]
         self._philipsShort = philipsTag(self._xmldata, True)
+        if isinstance(self._philipsShort, list):
+            self._philipsShort = self._philipsShort[0]
         return True
 
     def getNativeMagnification(self):
@@ -266,7 +278,10 @@ class ISyntaxFileTileSource(FileTileSource, metaclass=LruCacheMetaclass):
                         not callable(getattr(self._pe, key, None)) and
                         getattr(self._pe, key, None) is not None and
                         key not in {'id', }):
-                    result['isyntax'][key] = getattr(self._pe, key, None)
+                    value = getattr(self._pe, key, None)
+                    if isinstance(value, list):
+                        value = ' '.join(value)
+                    result['isyntax'][key] = value
             except Exception:
                 pass
         for key in dir(self._wsi):

@@ -66,7 +66,7 @@ class RPYCFileTileSource(FileTileSource, metaclass=LruCacheMetaclass):
                 'cache_lock', 'logger', 'wrapKey', '_tileIterator',
                 'tileIterator', 'tileIteratorAtAnotherScale', 'getSingleTile',
                 'getSingleTileAtAnotherScale', 'getTileCount', 'histogram',
-                'getRegion', 'tileFrames', 'getPixel',
+                'getRegion', 'tileFrames', 'getPixel', '_style', 'style',
             }:
                 try:
                     setattr(self, key, getattr(self._proxy, key))

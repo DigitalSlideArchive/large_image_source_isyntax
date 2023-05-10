@@ -11,4 +11,6 @@ class RPYCGirderTileSource(RPYCFileTileSource, GirderTileSource):
     cacheName = 'tilesource'
     name = 'rpyc'
 
-    _mayHaveAdjacentFiles = True
+    # This doesn't work properly, and requires more investigation to determine
+    # why using a fuse path causes failure
+    # _mayHaveAdjacentFiles = True
