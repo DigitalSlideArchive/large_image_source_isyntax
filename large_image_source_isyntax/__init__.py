@@ -137,7 +137,7 @@ class ISyntaxFileTileSource(FileTileSource, metaclass=LruCacheMetaclass):
         # The word "in" seems to be arbitrary
         self._pe = pixelengine.PixelEngine(render_backend, render_context)['in']
         try:
-            self._pe.open(self._largeImagePath)
+            self._pe.open(self._largeImagePath, 'ficom')
         except RuntimeError:
             if not os.path.isfile(self._largeImagePath):
                 raise TileSourceFileNotFoundError(self._largeImagePath) from None
