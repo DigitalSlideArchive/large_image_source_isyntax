@@ -128,7 +128,6 @@ class ISyntaxFileTileSource(FileTileSource, metaclass=LruCacheMetaclass):
                 raise TileSourceError(
                     'File cannot be opened via the isyntax source.  Not expected XML start.')
         except Exception:
-            self.logger.exception('Failed in parsing XML')
             raise TileSourceError(
                 'File cannot be opened via the isyntax source.  Not expected XML start.')
         _lazyImport()
